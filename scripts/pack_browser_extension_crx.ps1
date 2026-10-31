@@ -77,22 +77,6 @@ try {
     New-Item -ItemType Directory -Path $StageRoot | Out-Null
     Copy-Item -LiteralPath $ExtensionDir -Destination $StageExtension -Recurse -Force
 
-    $BackgroundPath = Join-Path $StageExtension "background.js"
-    $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
-    $BackgroundText = [System.IO.File]::ReadAllText($BackgroundPath, $Utf8NoBom)
-    $Pattern = 'const\s+NEWAPI_CHARGE_ENABLED\s*=\s*false\s*;'
-    if ($BackgroundText -notmatch $Pattern) {
-        throw "Could not find 'const NEWAPI_CHARGE_ENABLED = false;' in staged background.js."
-    }
-
-    $BackgroundText = [regex]::Replace(
-        $BackgroundText,
-        $Pattern,
-        "const NEWAPI_CHARGE_ENABLED = true;",
-        1
-    )
-    [System.IO.File]::WriteAllText($BackgroundPath, $BackgroundText, $Utf8NoBom)
-
     if (Test-Path -LiteralPath $PackedCrx) {
         Remove-Item -LiteralPath $PackedCrx -Force
     }
@@ -120,9 +104,7 @@ try {
     Copy-Item -LiteralPath $PackedCrx -Destination $OutputCrx -Force
 
     Write-Host "CRX created: $OutputCrx"
-    Write-Host "Packaged background.js uses: const NEWAPI_CHARGE_ENABLED = true;"
     Write-Host "Packaged manifest.json keeps side_panel behavior; no action.default_popup is added."
-    Write-Host "Source background.js was not modified: $ExtensionDir\background.js"
 }
 finally {
     if ($KeepStaging) {

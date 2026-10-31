@@ -132,7 +132,7 @@
     image: "Image",
     video: "Video",
     generateTest: "Generate Test",
-    tokenPlaceholder: "Request fpbrowser-use model token from the official site",
+    tokenPlaceholder: "Same as backend bridge_token (leave empty if unset)",
     efaPlaceholder: "2FA Secret (optional)",
     saveHint: "After saving, visit backend /api/extension/clients to view registration status.",
     transferHint: "Each line can be copied separately. Links are clickable and open in a new page. Data is cached in browser local storage.",

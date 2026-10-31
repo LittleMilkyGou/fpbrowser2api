@@ -121,7 +121,7 @@
   "image": { "message": "图片" },
   "video": { "message": "视频" },
   "generateTest": { "message": "生成测试" },
-  "tokenPlaceholder": { "message": "官网申请 fpbrowser-use 模型令牌" },
+  "tokenPlaceholder": { "message": "与后端 bridge_token 一致（未设置可留空）" },
   "efaPlaceholder": { "message": "2FA Secret（可空）" },
   "saveHint": { "message": "保存后可访问后端 /api/extension/clients 查看注册状态。" },
   "transferHint": { "message": "每行可单独复制。链接可点击并在新页面打开。数据会缓存在浏览器本地存储中。" },

@@ -9,11 +9,9 @@ let heartbeatTimer = null;
 let currentConnectKey = "";
 let connectSeq = 0;
 const HEARTBEAT_INTERVAL_MS = 15000;
-const NEWAPI_CHARGE_BASE_URL = "https://www.newtoken.club";
-const NEWAPI_CHARGE_MODEL = "fpbrowser-use";
+// 分析页 AI 对话使用的大模型中转地址
+const ANALYSIS_AI_BASE_URL = "https://www.newtoken.club";
 const ANALYSIS_WINDOW_STATE_STORAGE_KEY = "analysis_window_state";
-// 临时关闭 NewAPI 扣费。需要恢复时改为 true 即可。
-const NEWAPI_CHARGE_ENABLED = false;
 const VEO_HUMAN_ACTIVITY_ACTIONS = new Set(["human_activity", "simulate_human_activity"]);
 const analysisAiControllers = new Map();
 const analysisWindowStateTimers = new Map();
@@ -159,67 +157,6 @@ function startHeartbeat(socket, seq) {
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function chargeNewapiUsage(reason, meta = {}) {
-  if (!NEWAPI_CHARGE_ENABLED) {
-    await pushLog("info", "NewAPI 扣费已临时关闭，跳过", { reason, model: NEWAPI_CHARGE_MODEL, meta });
-    return { ok: true, skipped: true, reason: "newapi_charge_disabled" };
-  }
-  const cfg = await getConfig();
-  const token = String(cfg.bridgeToken || "").trim();
-  if (!token) {
-    throw new Error("NewAPI 扣费令牌为空：请先在 bridgeToken 中填写 fpbrowser-use 模型令牌");
-  }
-  const url = `${NEWAPI_CHARGE_BASE_URL.replace(/\/+$/, "")}/v1/chat/completions`;
-  const body = {
-    model: NEWAPI_CHARGE_MODEL,
-    messages: [
-      {
-        role: "user",
-        content: JSON.stringify({
-          action: "charge",
-          reason: String(reason || "fpbrowser_use"),
-          ts: Date.now(),
-          ...meta
-        })
-      }
-    ],
-    max_tokens: 1,
-    temperature: 0
-  };
-  await pushLog("info", "NewAPI charge start", { reason, model: NEWAPI_CHARGE_MODEL });
-  let resp;
-  let text = "";
-  try {
-    resp = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-      },
-      body: JSON.stringify(body)
-    });
-    text = await resp.text();
-  } catch (e) {
-    await pushLog("error", "NewAPI 扣费请求失败", { reason, error: String(e && e.message || e) });
-    throw new Error(`NewAPI 扣费请求失败：${String(e && e.message || e)}`);
-  }
-  let json = null;
-  try { json = text ? JSON.parse(text) : null; } catch (_) {}
-  if (!resp.ok) {
-    const msg = (json && (json.error && (json.error.message || json.error.code) || json.message || json.detail)) || text || `HTTP ${resp.status}`;
-    await pushLog("error", "NewAPI 扣费失败", { reason, status: resp.status, response: String(msg).slice(0, 500) });
-    throw new Error(`NewAPI 扣费失败：${msg}`);
-  }
-  await pushLog("info", "NewAPI 扣费成功", {
-    reason,
-    status: resp.status,
-    id: json && json.id,
-    usage: json && json.usage
-  });
-  return json || { ok: true };
 }
 
 function normalizeRedirectUrl(raw) {
@@ -565,7 +502,6 @@ async function runTask(msg) {
       result = { skipped: true, reason: "protected_google_page", url: loginUrl };
       await runtime.progress(100, { stage: "google_auto_login_skipped", reason: "protected_google_page" });
     } else {
-      await chargeNewapiUsage("google_auto_login", { task_id: taskId, provider: msg.provider || "google" });
       await runtime.progress(5, { stage: "google_auto_login_start" });
       result = await runGoogleAutoLogin({
         googleAccount: payload.google_account || payload.googleAccount || "",
@@ -584,9 +520,6 @@ async function runTask(msg) {
     }
   } else if (msg.provider === "veo") {
     const action = String(payload.action || payload.workflow_kind || "").trim().toLowerCase();
-    if (!VEO_HUMAN_ACTIVITY_ACTIONS.has(action) && action !== "current_page" && action !== "get_current_page" && action !== "current_url" && action !== "get_current_url" && action !== "fetch_tokens" && action !== "fetch_access_tokens" && action !== "get_access_tokens" && action !== "create_flow_project" && action !== "flow_project_create" && action !== "create_project" && action !== "delete_flow_project" && action !== "flow_project_delete" && action !== "delete_project" && action !== "balance_refresh" && action !== "refresh_balance") {
-      await chargeNewapiUsage("veo_workflow", { task_id: taskId, provider: "veo", workflow_kind: payload.workflow_kind || payload.action || "" });
-    }
     result = await runVeoTask(msg, runtime);
     if (["current_page", "get_current_page", "current_url", "get_current_url"].includes(action)) {
       const url = String(result && result.url || "");
@@ -597,16 +530,8 @@ async function runTask(msg) {
       }
     }
   } else if (msg.provider === "dreamina") {
-    const action = String(payload.action || payload.workflow_kind || "").trim().toLowerCase();
-    if (!["fetch_sessionid", "fetch_access_token", "get_sessionid"].includes(action)) {
-      await chargeNewapiUsage("dreamina_workflow", { task_id: taskId, provider: "dreamina", workflow_kind: payload.workflow_kind || payload.action || "" });
-    }
     result = await runDreaminaTask(msg, runtime);
   } else if (msg.provider === "gpt") {
-    const action = String(payload.action || payload.workflow_kind || "").trim().toLowerCase();
-    if (!["get_access_token", "fetch_access_token", "fetch_tokens", "refresh_membership", "membership_refresh", "get_membership", "membership", "subscription_info", "refresh_balance", "balance_refresh", "get_balance", "balance", "query_progress", "poll_task", "get_task"].includes(action)) {
-      await chargeNewapiUsage("gpt_workflow", { task_id: taskId, provider: "gpt", workflow_kind: payload.workflow_kind || payload.action || "" });
-    }
     result = await runGptTask(msg, runtime);
   } else if (msg.provider === "network") {
     result = await runNetworkTask(msg, runtime);
@@ -619,7 +544,6 @@ async function runTask(msg) {
 }
 
 async function clearCurrentPageLocalStorage() {
-  await chargeNewapiUsage("clear_recaptcha", { source: "popup.clearCurrentPageLocalStorage" });
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   const tab = Array.isArray(tabs) && tabs[0] ? tabs[0] : null;
   if (!tab || !tab.id) throw new Error("no active tab found");
@@ -1595,8 +1519,6 @@ async function runPopupVeoGenerateTest(kind) {
     return { skipped: true, reason: "active_task_running", active_task: status.activeTask };
   }
 
-  await chargeNewapiUsage("veo_generate_test", { source: "popup.veoGenerateTest", test_kind: testKind });
-
   const taskId = `popup-veo-test-${testKind}-${Date.now()}`;
   const prompt = testKind === "video"
     ? "A calm cinematic shot of a small red paper boat floating on a clear pond, soft morning light, gentle ripples."
@@ -1751,10 +1673,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         });
         return;
       }
-      await chargeNewapiUsage("popup_google_auto_login", { source: "popup.googleAutoLogin" });
       const result = await runGoogleAutoLogin(
         message.creds || {},
-        tab?.id ? { charged: true, tabId: tab.id, url, onlyIfGoogleLoginPage: true } : { charged: true, onlyIfGoogleLoginPage: true }
+        tab?.id ? { tabId: tab.id, url, onlyIfGoogleLoginPage: true } : { onlyIfGoogleLoginPage: true }
       );
       sendResponse({ ok: true, result });
       return;
@@ -1887,7 +1808,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const cfg = await getConfig();
       const token = String(got.analysis_api_key || cfg.bridgeToken || "").trim();
       try {
-        const resp = await fetch(`${NEWAPI_CHARGE_BASE_URL}/v1/models`, {
+        const resp = await fetch(`${ANALYSIS_AI_BASE_URL}/v1/models`, {
           headers: token ? { "Authorization": `Bearer ${token}` } : {}
         });
         const data = await resp.json();
@@ -1979,7 +1900,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const cfg = await getConfig();
       const token = String(got.analysis_api_key || cfg.bridgeToken || "").trim();
       if (!token) { sendResponse({ ok: false, error: "bridge_token 未配置" }); return; }
-      const baseUrl = NEWAPI_CHARGE_BASE_URL.replace(/\/+$/, "");
+      const baseUrl = ANALYSIS_AI_BASE_URL.replace(/\/+$/, "");
       const model = String(message.model || "").trim() || "claude-sonnet-4-6";
       const messages = Array.isArray(message.messages) ? message.messages : [];
       const tools = Array.isArray(message.tools) ? message.tools : undefined;

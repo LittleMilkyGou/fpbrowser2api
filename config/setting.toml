@@ -1,11 +1,11 @@
 [server]
-host = "0.0.0.0"
+host = "127.0.0.1"
 port = 8000
 
 [global]
 admin_username = "admin"
-admin_password = "admin"
-api_key = "mirrmart_sora2_880315"
+admin_password = "Js95c2AvFiF_lY02"
+api_key = "sk-fpb-96e68212eeee8346e8293c3ef17f6502"
 
 [system]
 proxy_enabled = false
@@ -20,7 +20,7 @@ base_url = "127.0.0.1:8000"
 # 指纹浏览器插件连接 Python 后端的 WebSocket 地址为f"ws://{base_url}/api/extension/ws"
 # 插件配置中转页：Python 先打开f"http://{base_url}/"页面写入 fpb_* 与 redirect_url，插件连接 WS 后再跳转目标站点。
 # 可选鉴权 token；留空则不校验
-bridge_token = ""
+bridge_token = "d79ded55bd5cf7f7a5bb205575bb0286"
 task_timeout_seconds = 1800
 
 # VEO 2K：enabled=true 时上传 JPEG 到 OSS，upsample_url 为 URL；false 时仍为 data:image/jpeg;base64,...（占库容大）
